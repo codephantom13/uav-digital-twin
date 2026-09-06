@@ -198,11 +198,8 @@ export const App: React.FC = () => {
         
         {/* Logo */}
         <div className="flex items-center gap-3">
-          <div className="relative w-9 h-9 flex items-center justify-center">
-            <div className="absolute inset-0 rounded-lg border border-cyan-400/40 animate-spin-slow bg-cyan-500/5 shadow-[0_0_12px_rgba(0,240,255,0.2)]" />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#00F0FF" strokeWidth="1.8">
-              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-            </svg>
+          <div className="relative w-9 h-9 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden">
+            <img src="/logo.png" alt="AERO TWIN" className="w-8 h-8 object-contain rounded-md" />
           </div>
           <div className="flex flex-col leading-tight">
             <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">AERO TWIN</span>
