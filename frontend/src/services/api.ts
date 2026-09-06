@@ -1,4 +1,4 @@
-import type { AlertItem, MaintenanceRecordItem, TelemetryReading } from '../types/telemetry';
+import type { AlertItem, MaintenanceRecordItem, TelemetryReading, AiInsight } from '../types/telemetry';
 
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/+$/, '') + '/api';
 const WS_BASE = (import.meta.env.VITE_WS_URL || (import.meta.env.VITE_API_URL ? import.meta.env.VITE_API_URL.replace(/^http/, 'ws') : 'ws://localhost:8000')).replace(/\/+$/, '') + '/ws/telemetry';
@@ -78,6 +78,12 @@ export const api = {
   async getReplayData(limit = 200): Promise<TelemetryReading[]> {
     const res = await fetch(`${API_BASE}/mission/replay-data?limit=${limit}`);
     if (!res.ok) throw new Error('Failed to fetch replay data');
+    return res.json();
+  },
+
+  async getAiInsight(): Promise<AiInsight> {
+    const res = await fetch(`${API_BASE}/ai/insight`);
+    if (!res.ok) throw new Error('Failed to fetch AI insight');
     return res.json();
   }
 };

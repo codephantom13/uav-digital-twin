@@ -100,3 +100,16 @@ export interface MaintenanceRecordItem {
   performed_by: string;
   next_due_hours: number;
 }
+
+export interface AiInsight {
+  diagnosis: string;
+  root_cause: string;
+  prediction: string;
+  recommendations: string[];
+  mission_advisory: 'SAFE' | 'CAUTION' | 'ABORT' | string;
+  advisory_reason: string;
+  confidence: number;
+  model: string;
+  generated_at: string;
+  ai_powered: boolean;
+}

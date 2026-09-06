@@ -152,3 +152,41 @@ async def get_fault_types(request: Request):
     if service.sensor:
         return service.sensor.get_fault_types()
     return []
+
+@router.get('/ai/insight')
+async def get_ai_insight(request: Request):
+    """
+    Get real-time AI diagnostic insight from Groq LLM.
+    Uses current ML model outputs + live telemetry as context.
+    Returns: diagnosis, root_cause, prediction, recommendations, mission_advisory.
+    """
+    service = request.app.state.telemetry_service
+    if not service.groq_advisor:
+        raise HTTPException(status_code=503, detail="AI Advisor not initialized")
+    
+    reading = service.latest_reading
+    if not reading and service.sensor:
+        reading = service.sensor.generate_reading()
+        if service.predictor and service.predictor.is_loaded:
+            preds = service.predictor.predict_all(reading)
+            reading.update(preds)
+        service.latest_reading = reading
+
+    if not reading:
+        raise HTTPException(status_code=404, detail="No telemetry available yet")
+
+    insight = await service.groq_advisor.get_insight(reading)
+    return insight
+
+@router.post('/ai/insight')
+async def get_ai_insight_with_context(request: Request):
+    """
+    Get AI insight for a specific telemetry reading (e.g., during replay).
+    POST body: telemetry dict with ML model outputs.
+    """
+    service = request.app.state.telemetry_service
+    if not service.groq_advisor:
+        raise HTTPException(status_code=503, detail="AI Advisor not initialized")
+    body = await request.json()
+    insight = await service.groq_advisor.get_insight(body)
+    return insight

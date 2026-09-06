@@ -18,6 +18,7 @@ try:
     from backend.database.sqlite_client import SQLiteClient
     from backend.sensor.producer import EngineSensorProducer
     from backend.ml.predictor import EnginePredictor
+    from backend.ai.groq_advisor import GroqAdvisor
 except ImportError:
     from config import SIMULATION_INTERVAL_SEC, HISTORY_MAX_SIZE, DEFAULT_ENGINE_ID, ML_MODELS_DIR
     from mqtt.client import MQTTClient
@@ -25,6 +26,7 @@ except ImportError:
     from database.sqlite_client import SQLiteClient
     from sensor.producer import EngineSensorProducer
     from ml.predictor import EnginePredictor
+    from ai.groq_advisor import GroqAdvisor
 
 def json_serial(obj):
     if isinstance(obj, datetime):
@@ -46,6 +48,7 @@ class TelemetryService:
         self.mqtt_client = None
         self.influx_client = None
         self.sqlite_client = None
+        self.groq_advisor = None
         
         self.is_running = False
         self.history = deque(maxlen=HISTORY_MAX_SIZE)
@@ -54,6 +57,7 @@ class TelemetryService:
         self.current_engine_id = DEFAULT_ENGINE_ID
         self._task = None
         self.latest_reading = None
+        self.latest_ai_insight = None
     
     async def initialize(self):
         logging.info("Initializing Telemetry Service...")
@@ -68,6 +72,7 @@ class TelemetryService:
         
         self.sensor = EngineSensorProducer(self.current_engine_id, use_digital_twin=True)
         self.predictor = EnginePredictor(models_dir=ML_MODELS_DIR)
+        self.groq_advisor = GroqAdvisor()
         
         self.sqlite_client.add_engine(self.current_engine_id)
         

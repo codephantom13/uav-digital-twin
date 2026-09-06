@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ThreeEngineHologram } from './components/ThreeEngineHologram';
+import { AiAdvisorCard } from './components/AiAdvisorCard';
 import { api, TelemetrySocket } from './services/api';
 import type { SimulationStatus } from './services/api';
-import type { AlertItem, MaintenanceRecordItem, TelemetryReading } from './types/telemetry';
+import type { AlertItem, MaintenanceRecordItem, TelemetryReading, AiInsight } from './types/telemetry';
 import { 
   Play, 
   Square, 
@@ -31,6 +32,22 @@ export const App: React.FC = () => {
   const [faultTypes, setFaultTypes] = useState<string[]>([]);
   const [currentFault, setCurrentFault] = useState<string>('none');
   
+  // AREON AI Advisor (Groq LLM)
+  const [aiInsight, setAiInsight] = useState<AiInsight | null>(null);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
+
+  const fetchAiInsight = useCallback(async () => {
+    setAiLoading(true);
+    try {
+      const res = await api.getAiInsight();
+      if (res) setAiInsight(res);
+    } catch {
+      // Graceful fallback
+    } finally {
+      setAiLoading(false);
+    }
+  }, []);
+
   // Replay scrubber state
   const [isReplayMode, setIsReplayMode] = useState<boolean>(false);
   const [replayIndex, setReplayIndex] = useState<number>(0);
@@ -75,6 +92,8 @@ export const App: React.FC = () => {
             setTelemetry(replayList[0]);
           }
         }
+        // Initial AI insight
+        fetchAiInsight();
       } catch (err) {
         console.error('Initial data fetch error:', err);
       }
@@ -87,10 +106,11 @@ export const App: React.FC = () => {
     return () => {
       socket.disconnect();
     };
-  }, [handleTelemetryMessage, handleSocketStatus]);
+  }, [handleTelemetryMessage, handleSocketStatus, fetchAiInsight]);
 
-  // Periodic polling for status & alerts
+  // Periodic polling for status, alerts & AI insights
   useEffect(() => {
+    let tickCount = 0;
     const timer = setInterval(async () => {
       try {
         const [latestAlerts, latestStatus] = await Promise.all([
@@ -99,13 +119,19 @@ export const App: React.FC = () => {
         ]);
         if (latestAlerts) setAlerts(latestAlerts);
         if (latestStatus) setStatus(latestStatus);
+        
+        // Refresh AI insight every ~8 seconds (2 ticks)
+        tickCount++;
+        if (tickCount % 2 === 0) {
+          fetchAiInsight();
+        }
       } catch (e) {
         // silent
       }
     }, 4000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [fetchAiInsight]);
 
   // Replay playback ticker
   useEffect(() => {
@@ -151,6 +177,8 @@ export const App: React.FC = () => {
     try {
       setCurrentFault(fault);
       await api.setFault(fault);
+      // Allow 1 second for simulation loop to capture fault reading and re-query Groq LLM
+      setTimeout(fetchAiInsight, 1200);
     } catch (e) {
       console.error(e);
     }
@@ -548,6 +576,15 @@ export const App: React.FC = () => {
             );
           })}
         </div>
+
+        {/* AREON AI Diagnostic & Predictive Maintenance Advisor (Groq LLM) */}
+        <AiAdvisorCard
+          insight={aiInsight}
+          loading={aiLoading}
+          onRefresh={fetchAiInsight}
+          faultType={faultType}
+          anomaly={telemetry?.anomaly ?? 0}
+        />
 
         {/* SHAP Explainability & Alert Log */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
