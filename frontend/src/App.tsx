@@ -199,10 +199,10 @@ export const App: React.FC = () => {
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="relative w-9 h-9 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden">
-            <img src="/logo.png" alt="AERO TWIN" className="w-8 h-8 object-contain rounded-md" />
+            <img src="/logo.png" alt="AREON" className="w-8 h-8 object-contain rounded-md" />
           </div>
           <div className="flex flex-col leading-tight">
-            <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">AERO TWIN</span>
+            <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">AREON</span>
             <span className="text-[9px] text-slate-400 tracking-wider uppercase">MALE UAV Digital Twin GCS</span>
           </div>
         </div>
@@ -742,7 +742,7 @@ export const App: React.FC = () => {
 
       {/* ── 5. FOOTER ─────────────────────────────────────────────────────────── */}
       <footer className="border-t border-cyan-500/10 bg-[#070B14] py-3 px-4 text-center text-[10px] font-mono text-slate-500">
-        AERO TWIN • SMART INDIA HACKATHON • MALE UAV TURBOCHARGED PISTON ENGINE AI DIGITAL TWIN
+        AREON • SMART INDIA HACKATHON • MALE UAV TURBOCHARGED PISTON ENGINE AI DIGITAL TWIN
       </footer>
 
     </div>

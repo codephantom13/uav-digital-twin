@@ -47,5 +47,5 @@ DATASET_PATH = os.path.join(
 # ─── Server ─────────────────────────────────────────────────────────────────
 API_HOST = os.getenv("API_HOST", "0.0.0.0")
 API_PORT = int(os.getenv("API_PORT", "8000"))
-API_TITLE = "UAV Engine Digital Twin API"
+API_TITLE = "AREON UAV Engine Digital Twin API"
 API_VERSION = "1.0.0"

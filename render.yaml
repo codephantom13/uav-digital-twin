@@ -1,7 +1,7 @@
 services:
   # --- FastAPI Python Backend ----------------------------
   - type: web
-    name: aero-twin-backend
+    name: areon-backend
     env: python
     region: oregon
     plan: free
@@ -15,7 +15,7 @@ services:
 
   # --- React Vite Frontend ------------------------------
   - type: web
-    name: aero-twin-frontend
+    name: areon-frontend
     env: static
     region: oregon
     plan: free
