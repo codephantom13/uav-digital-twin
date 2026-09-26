@@ -44,13 +44,24 @@ Be concise, technical, and actionable. Respond ONLY with the JSON object — no 
 class GroqAdvisor:
     """
     Groq LLM-powered engine diagnostic advisor for AREON.
-    Wraps llama-3.3-70b-versatile to generate real-time AI insights.
+    Automatically discovers and selects the optimal available model
+    (e.g., openai/gpt-oss-120b, qwen/qwen3.8-27b, llama-3.3-70b-versatile).
     """
+
+    PREFERRED_MODELS = [
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.8-27b",
+        "llama-3.3-70b-versatile",
+        "llama-3.1-70b-versatile",
+        "llama-3.1-8b-instant",
+        "openai/gpt-oss-20b",
+    ]
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
         self.client = None
-        self.model = "llama-3.3-70b-versatile"
+        self.model = os.getenv("GROQ_MODEL", "")
+        self.available_models = []
         self._last_insight: Optional[dict] = None
         self._last_insight_time: Optional[datetime] = None
         self._cache_ttl_sec = 5  # Avoid hammering the API on every tick
@@ -65,8 +76,34 @@ class GroqAdvisor:
         try:
             from groq import Groq
             self.client = Groq(api_key=self.api_key)
+
+            # Discover available models on this account/endpoint
+            try:
+                self.available_models = [m.id for m in self.client.models.list().data]
+            except Exception as e:
+                logger.warning(f"Could not query Groq model list: {e}")
+                self.available_models = []
+
+            # If user explicitly set GROQ_MODEL, use it
+            if self.model:
+                logger.info(f"Using explicitly configured GROQ_MODEL: {self.model}")
+            elif self.available_models:
+                # Match highest priority model available on account
+                matched = next((m for m in self.PREFERRED_MODELS if m in self.available_models), None)
+                if matched:
+                    self.model = matched
+                else:
+                    # Filter out non-chat models (audio transcription, guard models)
+                    chat_candidates = [
+                        m for m in self.available_models 
+                        if not any(x in m.lower() for x in ["whisper", "guard", "safeguard", "orpheus"])
+                    ]
+                    self.model = chat_candidates[0] if chat_candidates else self.available_models[0]
+            else:
+                self.model = "openai/gpt-oss-120b"
+
             self._initialized = True
-            logger.info(f"AREON Groq AI Advisor initialized — model: {self.model}")
+            logger.info(f"AREON Groq AI Advisor initialized — selected model: {self.model}")
         except ImportError:
             logger.error("groq package not installed. Run: pip install groq")
             self._initialized = False
@@ -150,34 +187,41 @@ Based on the above, provide your diagnostic assessment in the required JSON form
         if not self._initialized:
             return self._offline_fallback(telemetry)
 
-        try:
-            prompt = self._build_telemetry_prompt(telemetry)
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.3,
-                max_tokens=600,
-                response_format={"type": "json_object"}
-            )
+        prompt = self._build_telemetry_prompt(telemetry)
+        models_to_try = [self.model] + [m for m in self.PREFERRED_MODELS if m != self.model]
 
-            raw = response.choices[0].message.content
-            import json
-            result = json.loads(raw)
-            result["model"] = self.model
-            result["generated_at"] = now.isoformat()
-            result["ai_powered"] = True
+        for attempt_model in models_to_try:
+            try:
+                response = self.client.chat.completions.create(
+                    model=attempt_model,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.3,
+                    max_tokens=600,
+                    response_format={"type": "json_object"}
+                )
 
-            self._last_insight = result
-            self._last_insight_time = now
-            logger.info(f"AREON AI insight generated — advisory: {result.get('mission_advisory', '?')}")
-            return result
+                raw = response.choices[0].message.content
+                import json
+                result = json.loads(raw)
+                result["model"] = attempt_model
+                result["generated_at"] = now.isoformat()
+                result["ai_powered"] = True
 
-        except Exception as e:
-            logger.error(f"Groq API error: {e}")
-            return self._offline_fallback(telemetry)
+                self.model = attempt_model  # Remember working model
+                self._last_insight = result
+                self._last_insight_time = now
+                logger.info(f"AREON AI insight generated with {attempt_model} — advisory: {result.get('mission_advisory', '?')}")
+                return result
+
+            except Exception as e:
+                logger.warning(f"Groq API error on model {attempt_model}: {e}")
+                continue
+
+        logger.error("All Groq candidate models failed. Falling back to offline diagnostic engine.")
+        return self._offline_fallback(telemetry)
 
     def _offline_fallback(self, telemetry: dict) -> dict:
         """Rule-based fallback when Groq API is unavailable."""
