@@ -1,4 +1,4 @@
-﻿"""
+"""
 AREON AI Advisor — Groq LLM Integration
 Uses llama-3.3-70b-versatile model via Groq API to generate real-time
 diagnostic insights, maintenance recommendations, and mission safety advisories
@@ -48,7 +48,7 @@ class GroqAdvisor:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or GROQ_API_KEY
+        self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
         self.client = None
         self.model = "llama-3.3-70b-versatile"
         self._last_insight: Optional[dict] = None
