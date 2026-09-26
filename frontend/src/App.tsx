@@ -411,13 +411,14 @@ export const App: React.FC = () => {
         {/* ── 3. CENTER VIEWPORT: 3D HOLOGRAM + KALMAN CHARTS + GAUGES ──────── */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           
-          {/* Left: 3D Hologram (7 cols) */}
-          <div className="lg:col-span-7">
+          {/* Left: 3D Hologram (12 cols in 3D tab, 7 cols in Overview) */}
+          <div className={activeTab === '3D Hologram Twin' ? 'lg:col-span-12' : 'lg:col-span-7'}>
             <ThreeEngineHologram telemetry={telemetry} />
           </div>
 
           {/* Right: Physics Kalman Chart & Gauges (5 cols) */}
-          <div className="lg:col-span-5 flex flex-col space-y-4">
+          {activeTab !== '3D Hologram Twin' && (
+            <div className="lg:col-span-5 flex flex-col space-y-4">
             
             {/* (A) Physics Digital Twin Synchronization Chart */}
             <div className="glass corner-bracket rounded-xl p-4 flex flex-col h-[280px]">
@@ -545,6 +546,7 @@ export const App: React.FC = () => {
             </div>
 
           </div>
+          )}
 
         </div>
 
