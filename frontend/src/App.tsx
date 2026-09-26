@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ThreeEngineHologram } from './components/ThreeEngineHologram';
 import { AiAdvisorCard } from './components/AiAdvisorCard';
+import { FleetManager } from './components/FleetManager';
+import { SideMenu } from './components/SideMenu';
 import { api, TelemetrySocket } from './services/api';
 import type { SimulationStatus } from './services/api';
-import type { AlertItem, MaintenanceRecordItem, TelemetryReading, AiInsight } from './types/telemetry';
+import type { AlertItem, MaintenanceRecordItem, TelemetryReading, AiInsight, EngineSummary } from './types/telemetry';
 import { 
   Play, 
   Square, 
@@ -12,15 +14,19 @@ import {
   WifiOff, 
   Sliders, 
   RotateCcw, 
-  Pause,
-  FastForward,
-  Check
+  Pause, 
+  FastForward, 
+  Check,
+  Menu,
+  Plane,
+  Server
 } from 'lucide-react';
 
-type NavTab = 'Command Overview' | '3D Hologram Twin' | 'AI & SHAP Analytics' | 'Mission Replay';
+type NavTab = 'Command Overview' | '3D Hologram Twin' | 'AI & SHAP Analytics' | 'Mission Replay' | 'Fleet Manager';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('Command Overview');
+  const [isSideMenuOpen, setIsSideMenuOpen] = useState<boolean>(false);
   const [telemetry, setTelemetry] = useState<TelemetryReading | null>(null);
   const [history, setHistory] = useState<TelemetryReading[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
@@ -32,21 +38,57 @@ export const App: React.FC = () => {
   const [faultTypes, setFaultTypes] = useState<string[]>([]);
   const [currentFault, setCurrentFault] = useState<string>('none');
   
+  // Multi-Engine Fleet State
+  const [engines, setEngines] = useState<EngineSummary[]>([
+    {
+      engine_id: 'ENGINE_001',
+      model_name: 'TAPAS-BH 2.2L Aero-Diesel',
+      is_active: true,
+      status: 'operational',
+      current_fault: 'none',
+      anomaly: 0,
+      rul_hours: 1240,
+      health_score: 95.0,
+      rpm: 3200,
+      cht: 175,
+      egt: 620,
+      oil_pressure: 5.2,
+      oil_temperature: 85,
+      fuel_flow_rate: 18,
+      vibration_rms: 0.20,
+      twin_fidelity_score: 0.986,
+      updated_at: new Date().toISOString()
+    }
+  ]);
+  const [activeEngineId, setActiveEngineId] = useState<string>('ENGINE_001');
+
   // AREON AI Advisor (Groq LLM)
   const [aiInsight, setAiInsight] = useState<AiInsight | null>(null);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
 
-  const fetchAiInsight = useCallback(async () => {
+  const fetchEngines = useCallback(async () => {
+    try {
+      const fleet = await api.getEngines();
+      if (fleet && fleet.length > 0) {
+        setEngines(fleet);
+      }
+    } catch {
+      // offline fallback
+    }
+  }, []);
+
+  const fetchAiInsight = useCallback(async (targetId?: string) => {
+    const eid = targetId || activeEngineId;
     setAiLoading(true);
     try {
-      const res = await api.getAiInsight();
+      const res = await api.getAiInsight(eid);
       if (res) setAiInsight(res);
     } catch {
       // Graceful fallback
     } finally {
       setAiLoading(false);
     }
-  }, []);
+  }, [activeEngineId]);
 
   // Replay scrubber state
   const [isReplayMode, setIsReplayMode] = useState<boolean>(false);
@@ -57,11 +99,41 @@ export const App: React.FC = () => {
 
   // Handle incoming live telemetry message from WebSocket
   const handleTelemetryMessage = useCallback((data: TelemetryReading) => {
-    if (!isReplayMode) {
-      setTelemetry(data);
-      setHistory((prev) => [...prev.slice(-40), data]);
+    // If incoming message matches currently active engine, update main dashboard
+    if (!data.engine_id || data.engine_id === activeEngineId) {
+      if (!isReplayMode) {
+        setTelemetry(data);
+        setHistory((prev) => [...prev.slice(-40), data]);
+      }
     }
-  }, [isReplayMode]);
+
+    // Update fleet metrics in real-time
+    if (data.engine_id) {
+      setEngines((prev) => {
+        const idx = prev.findIndex((e) => e.engine_id === data.engine_id);
+        if (idx !== -1) {
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx],
+            anomaly: data.anomaly ?? 0,
+            health_score: data.health_score ?? (data.anomaly === 1 ? 58 : 95),
+            rul_hours: data.rul_hours ?? 1150,
+            rpm: data.rpm,
+            cht: data.cht,
+            egt: data.egt,
+            oil_pressure: data.oil_pressure,
+            oil_temperature: data.oil_temperature,
+            vibration_rms: data.vibration_rms,
+            current_fault: data.fault_type || 'none',
+            twin_fidelity_score: data.twin_fidelity_score ?? 0.98,
+            updated_at: data.timestamp
+          };
+          return updated;
+        }
+        return prev;
+      });
+    }
+  }, [activeEngineId, isReplayMode]);
 
   const handleSocketStatus = useCallback((connected: boolean) => {
     setIsConnected(connected);
@@ -71,21 +143,24 @@ export const App: React.FC = () => {
   useEffect(() => {
     const fetchInitial = async () => {
       try {
-        const [stat, faults, initAlerts, replayList, maintList] = await Promise.all([
+        const [stat, faults, initAlerts, replayList, maintList, fleetList] = await Promise.all([
           api.getStatus().catch(() => null),
           api.getFaultTypes().catch(() => []),
           api.getAlerts(20).catch(() => []),
           api.getReplayData(100).catch(() => []),
-          api.getMaintenance(20).catch(() => [])
+          api.getMaintenance(20).catch(() => []),
+          api.getEngines().catch(() => [])
         ]);
 
         if (stat) {
           setStatus(stat);
           setCurrentFault(stat.current_fault);
+          if (stat.active_engine_id) setActiveEngineId(stat.active_engine_id);
         }
         if (faults.length > 0) setFaultTypes(faults);
         if (initAlerts) setAlerts(initAlerts);
         if (maintList) setMaintenance(maintList);
+        if (fleetList && fleetList.length > 0) setEngines(fleetList);
         if (replayList.length > 0) {
           setReplayData(replayList);
           if (!telemetry && replayList[0]) {
@@ -108,17 +183,19 @@ export const App: React.FC = () => {
     };
   }, [handleTelemetryMessage, handleSocketStatus, fetchAiInsight]);
 
-  // Periodic polling for status, alerts & AI insights
+  // Periodic polling for status, alerts, fleet & AI insights
   useEffect(() => {
     let tickCount = 0;
     const timer = setInterval(async () => {
       try {
-        const [latestAlerts, latestStatus] = await Promise.all([
+        const [latestAlerts, latestStatus, fleetList] = await Promise.all([
           api.getAlerts(20).catch(() => []),
-          api.getStatus().catch(() => null)
+          api.getStatus().catch(() => null),
+          api.getEngines().catch(() => [])
         ]);
         if (latestAlerts) setAlerts(latestAlerts);
         if (latestStatus) setStatus(latestStatus);
+        if (fleetList && fleetList.length > 0) setEngines(fleetList);
         
         // Refresh AI insight every ~8 seconds (2 ticks)
         tickCount++;
@@ -152,6 +229,51 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [replayPlaying, isReplayMode, replaySpeed, replayData]);
 
+  // Multi-Engine Handlers
+  const handleSelectEngine = async (engineId: string) => {
+    try {
+      await api.selectEngine(engineId);
+      setActiveEngineId(engineId);
+      const [latest, hist] = await Promise.all([
+        api.getLatest(engineId).catch(() => null),
+        api.getHistory(40, engineId).catch(() => [])
+      ]);
+      if (latest) {
+        setTelemetry(latest);
+        setCurrentFault(latest.fault_type || 'none');
+      }
+      if (hist && hist.length > 0) {
+        setHistory(hist);
+      }
+      fetchEngines();
+      fetchAiInsight(engineId);
+    } catch (e) {
+      console.error('Failed to select engine:', e);
+    }
+  };
+
+  const handleAddEngine = async (engineId: string, modelName?: string) => {
+    try {
+      await api.addEngine(engineId, modelName);
+      await fetchEngines();
+    } catch (e) {
+      console.error('Failed to add engine:', e);
+      throw e;
+    }
+  };
+
+  const handleRemoveEngine = async (engineId: string) => {
+    try {
+      const res = await api.removeEngine(engineId);
+      if (res.active_engine) {
+        setActiveEngineId(res.active_engine);
+      }
+      await fetchEngines();
+    } catch (e) {
+      console.error('Failed to remove engine:', e);
+    }
+  };
+
   // Control Handlers
   const handleStartSim = async () => {
     try {
@@ -173,12 +295,14 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleSelectFault = async (fault: string) => {
+  const handleSelectFault = async (fault: string, engineId?: string) => {
+    const target = engineId || activeEngineId;
     try {
       setCurrentFault(fault);
-      await api.setFault(fault);
+      await api.setFault(fault, target);
       // Allow 1 second for simulation loop to capture fault reading and re-query Groq LLM
-      setTimeout(fetchAiInsight, 1200);
+      setTimeout(() => fetchAiInsight(target), 1200);
+      fetchEngines();
     } catch (e) {
       console.error(e);
     }
@@ -221,36 +345,96 @@ export const App: React.FC = () => {
   return (
     <div className="scanlines min-h-screen w-full flex flex-col overflow-x-hidden" style={{ background: '#070B14', fontFamily: 'Inter, sans-serif' }}>
       
+      {/* ── Slide-Out GCS Side Menu ────────────────────────────────────────── */}
+      <SideMenu
+        isOpen={isSideMenuOpen}
+        onClose={() => setIsSideMenuOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        engines={engines}
+        activeEngineId={activeEngineId}
+        onSelectEngine={handleSelectEngine}
+        onAddEngine={handleAddEngine}
+        isRunning={status?.is_running ?? false}
+        onStartSim={handleStartSim}
+        onStopSim={handleStopSim}
+        isConnected={isConnected}
+        currentFault={currentFault}
+        onSelectFault={handleSelectFault}
+        faultTypes={faultTypes}
+      />
+
       {/* ── 1. NAV HEADER ──────────────────────────────────────────────────────── */}
       <header className="relative z-20 flex flex-wrap items-center justify-between px-4 py-2.5 h-auto sm:h-14 shrink-0 gap-3 border-b border-cyan-500/20 bg-[#070B14]/95 backdrop-blur-md">
         
-        {/* Logo */}
+        {/* Left: Side Menu Toggle + Logo + Active Engine Switcher */}
         <div className="flex items-center gap-3">
-          <div className="relative w-9 h-9 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden">
-            <img src="/logo.png" alt="AREON" className="w-8 h-8 object-contain rounded-md" />
+          
+          {/* Side Menu Hamburger Toggle */}
+          <button
+            onClick={() => setIsSideMenuOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-cyan-950/60 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-900/50 hover:border-cyan-400 transition shadow-[0_0_10px_rgba(0,240,255,0.15)] cursor-pointer"
+            title="Open Multi-Engine Fleet Menu"
+          >
+            <Menu className="w-4 h-4" />
+            <span className="text-[11px] font-mono font-bold uppercase hidden sm:inline">MENU</span>
+            <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-cyan-500/20 text-cyan-400 border border-cyan-500/40">
+              {engines.length}
+            </span>
+          </button>
+
+          {/* Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="relative w-8 h-8 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden">
+              <img src="/logo.png" alt="AREON" className="w-7 h-7 object-contain rounded-md" />
+            </div>
+            <div className="flex flex-col leading-tight hidden xs:flex">
+              <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">AREON</span>
+              <span className="text-[8px] text-slate-400 tracking-wider uppercase">UAV Digital Twin</span>
+            </div>
           </div>
-          <div className="flex flex-col leading-tight">
-            <span className="text-xs font-bold tracking-[0.2em] text-cyan-400 uppercase">AREON</span>
-            <span className="text-[9px] text-slate-400 tracking-wider uppercase">MALE UAV Digital Twin GCS</span>
+
+          {/* Active Engine Switcher Badge in Header */}
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/90 border border-cyan-500/30">
+            <Plane className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[9px] font-mono text-slate-400 uppercase hidden md:inline">UNIT:</span>
+            <select
+              value={activeEngineId}
+              onChange={(e) => handleSelectEngine(e.target.value)}
+              className="bg-transparent text-cyan-300 font-mono font-bold text-xs focus:outline-none cursor-pointer"
+            >
+              {engines.map((e) => (
+                <option key={e.engine_id} value={e.engine_id} className="bg-slate-950 text-white font-mono">
+                  ✈ {e.engine_id} {e.anomaly === 1 ? '⚠️ ALERT' : '✓ NOMINAL'}
+                </option>
+              ))}
+            </select>
           </div>
+
         </div>
 
         {/* Nav Tabs */}
-        <nav className="flex items-center gap-1 p-1 rounded-full bg-slate-900/90 border border-cyan-500/20">
-          {(['Command Overview', '3D Hologram Twin', 'AI & SHAP Analytics', 'Mission Replay'] as NavTab[]).map((tab) => (
+        <nav className="flex items-center gap-1 p-1 rounded-full bg-slate-900/90 border border-cyan-500/20 overflow-x-auto">
+          {(['Command Overview', '3D Hologram Twin', 'AI & SHAP Analytics', 'Mission Replay', 'Fleet Manager'] as NavTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => {
                 setActiveTab(tab);
                 setIsReplayMode(tab === 'Mission Replay');
               }}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 ${
                 activeTab === tab
-                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_10px_rgba(0,240,255,0.25)]'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_10px_rgba(0,240,255,0.25)] font-bold'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
-              {tab}
+              {tab === 'Fleet Manager' && <Server className="w-3.5 h-3.5 text-cyan-400" />}
+              <span>{tab}</span>
+              {tab === 'Fleet Manager' && (
+                <span className="w-4 h-4 rounded-full bg-cyan-500/20 text-cyan-300 text-[9px] font-mono flex items-center justify-center">
+                  {engines.length}
+                </span>
+              )}
             </button>
           ))}
         </nav>
@@ -315,8 +499,20 @@ export const App: React.FC = () => {
       {/* ── 2. MAIN CONTAINER ─────────────────────────────────────────────────── */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 space-y-4">
         
-        {/* Top 5 Metrics Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {activeTab === 'Fleet Manager' ? (
+          <FleetManager
+            engines={engines}
+            activeEngineId={activeEngineId}
+            onSelectEngine={handleSelectEngine}
+            onAddEngine={handleAddEngine}
+            onRemoveEngine={handleRemoveEngine}
+            onInjectFault={handleSelectFault}
+            faultTypes={faultTypes}
+          />
+        ) : (
+          <>
+            {/* Top 5 Metrics Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
           
           {/* 1. Health Index Score */}
           <div className={`glass corner-bracket rounded-xl p-3.5 flex items-center justify-between ${isAnomaly ? 'glass-panel-danger' : ''}`}>
@@ -776,6 +972,8 @@ export const App: React.FC = () => {
             </div>
           </div>
         </div>
+        </>
+        )}
 
       </main>
 

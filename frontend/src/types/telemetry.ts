@@ -113,3 +113,24 @@ export interface AiInsight {
   generated_at: string;
   ai_powered: boolean;
 }
+
+export interface EngineSummary {
+  engine_id: string;
+  model_name: string;
+  is_active: boolean;
+  status: 'operational' | 'maintenance' | 'warning' | 'critical' | string;
+  current_fault: string;
+  anomaly: number;
+  rul_hours: number;
+  health_score: number;
+  rpm: number;
+  cht: number;
+  egt: number;
+  oil_pressure: number;
+  oil_temperature: number;
+  fuel_flow_rate: number;
+  vibration_rms: number;
+  twin_fidelity_score: number;
+  updated_at: string;
+}
+

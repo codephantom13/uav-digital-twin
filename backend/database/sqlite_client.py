@@ -52,6 +52,19 @@ class SQLiteClient:
         with self.SessionLocal() as session:
             return session.query(Engine).filter_by(engine_id=engine_id).first()
 
+    def get_all_engines(self):
+        with self.SessionLocal() as session:
+            return session.query(Engine).all()
+
+    def delete_engine(self, engine_id):
+        with self.SessionLocal() as session:
+            engine = session.query(Engine).filter_by(engine_id=engine_id).first()
+            if engine:
+                session.delete(engine)
+                session.commit()
+                return True
+            return False
+
     def update_engine_hours(self, engine_id, hours, cycles):
         with self.SessionLocal() as session:
             engine = session.query(Engine).filter_by(engine_id=engine_id).first()
