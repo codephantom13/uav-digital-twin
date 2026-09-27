@@ -471,10 +471,10 @@ export const App: React.FC = () => {
       />
 
       {/* ── 1. NAV HEADER ──────────────────────────────────────────────────────── */}
-      <header className="relative z-20 flex flex-wrap items-center justify-between px-3 sm:px-4 py-2.5 h-auto sm:h-14 shrink-0 gap-2 sm:gap-3 border-b border-cyan-500/20 bg-[#070B14]/95 backdrop-blur-md">
+      <header className="relative z-20 flex flex-wrap items-center justify-between px-3 sm:px-4 py-2 min-h-[56px] h-auto shrink-0 gap-y-2.5 gap-x-3 border-b border-cyan-500/20 bg-[#070B14]/95 backdrop-blur-md">
         
-        {/* Left: Side Menu Toggle + Logo + Active Engine Switcher */}
-        <div className="flex items-center gap-2.5 sm:gap-3">
+        {/* Left: Side Menu Toggle + Logo + Active Engine Switcher (Order 1) */}
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 order-1">
           
           {/* Side Menu Hamburger Toggle */}
           <button
@@ -491,7 +491,7 @@ export const App: React.FC = () => {
 
           {/* Logo */}
           <div className="flex items-center gap-2">
-            <div className="relative w-8 h-8 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden">
+            <div className="relative w-8 h-8 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden shrink-0">
               <img src="/logo.png" alt="AREON" className="w-7 h-7 object-contain rounded-md" />
             </div>
             <div className="flex flex-col leading-tight hidden xs:flex">
@@ -501,13 +501,13 @@ export const App: React.FC = () => {
           </div>
 
           {/* Active Engine Switcher Badge in Header */}
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/90 border border-cyan-500/30">
-            <Plane className="w-3.5 h-3.5 text-cyan-400" />
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900/90 border border-cyan-500/30 shrink-0">
+            <Plane className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
             <span className="text-[9px] font-mono text-slate-400 uppercase hidden md:inline">UNIT:</span>
             <select
               value={activeEngineId}
               onChange={(e) => handleSelectEngine(e.target.value)}
-              className="bg-transparent text-cyan-300 font-mono font-bold text-xs focus:outline-none cursor-pointer"
+              className="bg-transparent text-cyan-300 font-mono font-bold text-xs focus:outline-none cursor-pointer max-w-[140px] sm:max-w-[180px] truncate"
             >
               {engines.map((e) => (
                 <option key={e.engine_id} value={e.engine_id} className="bg-slate-950 text-white font-mono">
@@ -519,8 +519,8 @@ export const App: React.FC = () => {
 
         </div>
 
-        {/* Nav Tabs */}
-        <nav className="flex items-center gap-1 p-1 rounded-full bg-slate-900/90 border border-cyan-500/20 overflow-x-auto max-w-full">
+        {/* Center: Nav Tabs (Order 3 on <xl screens, Order 2 on xl+ screens) */}
+        <nav className="flex items-center gap-1 p-1 rounded-full bg-slate-900/90 border border-cyan-500/20 overflow-x-auto max-w-full order-3 xl:order-2 mx-auto xl:mx-0 shrink-0">
           {(['Command Overview', '3D Hologram Twin', 'AI & SHAP Analytics', 'Mission Replay', 'Fleet Manager'] as NavTab[]).map((tab) => (
             <button
               key={tab}
@@ -545,17 +545,17 @@ export const App: React.FC = () => {
           ))}
         </nav>
 
-        {/* Right Controls */}
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        {/* Right Controls: Search, Theme, Live Link, Fault, Sim (Order 2 on <xl, Order 3 on xl+) */}
+        <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 shrink-0 order-2 xl:order-3 ml-auto xl:ml-0">
           
           {/* Site Search Button (Ctrl+K) */}
           <button
             onClick={() => setIsCommandPaletteOpen(true)}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 text-xs font-mono transition shadow-sm cursor-pointer"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 text-xs font-mono transition shadow-sm cursor-pointer shrink-0"
             title="Search telemetry, engines & views (Ctrl+K)"
           >
             <Search className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="text-[11px] hidden xl:inline">Search</span>
+            <span className="text-[11px] hidden sm:inline">Search</span>
             <span className="text-[9px] text-slate-500 border border-slate-800 rounded px-1 hidden md:inline">Ctrl+K</span>
           </button>
 
@@ -566,14 +566,14 @@ export const App: React.FC = () => {
               setIsLightTheme(next);
               addToast('info', next ? 'Daylight Operations Mode' : 'Tactical Dark HUD Active', 'Display contrast adjusted');
             }}
-            className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition cursor-pointer"
+            className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition cursor-pointer shrink-0"
             title={isLightTheme ? "Switch to Tactical Dark HUD" : "Switch to Daylight Field Operations Mode"}
           >
             {isLightTheme ? <Moon className="w-4 h-4 text-cyan-300" /> : <Sun className="w-4 h-4 text-amber-400" />}
           </button>
 
           {/* Live Link Badge */}
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-xs">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-xs shrink-0">
             {isConnected ? (
               <>
                 <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
@@ -588,12 +588,12 @@ export const App: React.FC = () => {
           </div>
 
           {/* Fault Injector Dropdown */}
-          <div className="flex items-center gap-1.5">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+          <div className="flex items-center gap-1.5 shrink-0">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
             <select
               value={currentFault}
               onChange={(e) => handleSelectFault(e.target.value)}
-              className="bg-slate-900 border border-amber-500/40 text-amber-300 text-xs rounded-lg px-2.5 py-1 focus:outline-none cursor-pointer"
+              className="bg-slate-900 border border-amber-500/40 text-amber-300 text-xs rounded-lg px-2 py-1 max-w-[150px] sm:max-w-[190px] focus:outline-none cursor-pointer truncate font-mono"
             >
               <option value="none">🟢 No Fault (Nominal)</option>
               {faultTypes.filter(f => f !== 'none').map((f) => (
@@ -608,7 +608,7 @@ export const App: React.FC = () => {
           {status?.is_running ? (
             <button
               onClick={handleStopSim}
-              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-red-500/20 text-red-300 border border-red-500/50 hover:bg-red-500/30 transition shadow-[0_0_12px_rgba(239,68,68,0.3)]"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-red-500/20 text-red-300 border border-red-500/50 hover:bg-red-500/30 transition shadow-[0_0_12px_rgba(239,68,68,0.3)] shrink-0 cursor-pointer"
             >
               <Square className="w-3.5 h-3.5 fill-current" />
               <span>HALT SIM</span>
@@ -616,7 +616,7 @@ export const App: React.FC = () => {
           ) : (
             <button
               onClick={handleStartSim}
-              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-500/30 transition shadow-[0_0_12px_rgba(16,185,129,0.3)]"
+              className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/50 hover:bg-emerald-500/30 transition shadow-[0_0_12px_rgba(16,185,129,0.3)] shrink-0 cursor-pointer"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
               <span>START SIM</span>
