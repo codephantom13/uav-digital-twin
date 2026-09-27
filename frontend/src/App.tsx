@@ -3,6 +3,11 @@ import { ThreeEngineHologram } from './components/ThreeEngineHologram';
 import { AiAdvisorCard } from './components/AiAdvisorCard';
 import { FleetManager } from './components/FleetManager';
 import { SideMenu } from './components/SideMenu';
+import { CookieBanner } from './components/CookieBanner';
+import { CommandPalette } from './components/CommandPalette';
+import { BackToTop } from './components/BackToTop';
+import { NotFoundPage } from './components/NotFoundPage';
+import { ToastContainer, type ToastMessage } from './components/ToastContainer';
 import { api, TelemetrySocket } from './services/api';
 import type { SimulationStatus } from './services/api';
 import type { AlertItem, MaintenanceRecordItem, TelemetryReading, AiInsight, EngineSummary } from './types/telemetry';
@@ -19,10 +24,13 @@ import {
   Check,
   Menu,
   Plane,
-  Server
+  Server,
+  Search,
+  Sun,
+  Moon
 } from 'lucide-react';
 
-type NavTab = 'Command Overview' | '3D Hologram Twin' | 'AI & SHAP Analytics' | 'Mission Replay' | 'Fleet Manager';
+type NavTab = 'Command Overview' | '3D Hologram Twin' | 'AI & SHAP Analytics' | 'Mission Replay' | 'Fleet Manager' | '404 Diagnostic Test';
 
 export const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState<NavTab>('Command Overview');
@@ -61,6 +69,83 @@ export const App: React.FC = () => {
     }
   ]);
   const [activeEngineId, setActiveEngineId] = useState<string>('ENGINE_001');
+
+  // Site Search / Command Palette state
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
+
+  // Daylight Field Operations Mode vs Tactical Dark HUD
+  const [isLightTheme, setIsLightTheme] = useState<boolean>(() => {
+    return localStorage.getItem('areon_theme') === 'light';
+  });
+
+  // Global Toasts system
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const addToast = useCallback((type: 'success' | 'error' | 'warning' | 'info', title: string, message?: string) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    setToasts((prev) => [...prev.slice(-3), { id, type, title, message }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4500);
+  }, []);
+  const removeToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
+  // Scroll Progress Percentage (0 - 100%)
+  const [scrollPercent, setScrollPercent] = useState<number>(0);
+
+  // Sync Daylight Mode to DOM & LocalStorage
+  useEffect(() => {
+    if (isLightTheme) {
+      document.documentElement.setAttribute('data-theme', 'light');
+      localStorage.setItem('areon_theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+      localStorage.setItem('areon_theme', 'dark');
+    }
+  }, [isLightTheme]);
+
+  // Window scroll listener for scroll progress bar
+  useEffect(() => {
+    const handleScroll = () => {
+      const total = document.documentElement.scrollHeight - window.innerHeight;
+      if (total > 0) {
+        setScrollPercent(Math.min(100, Math.max(0, (window.scrollY / total) * 100)));
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Global Keyboard Shortcut: Ctrl+K / Cmd+K to open Search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Dynamic Document Title
+  useEffect(() => {
+    if (activeTab === 'Fleet Manager') {
+      document.title = `AREON | Fleet Manager (${engines.length} UAV Units)`;
+    } else if (activeTab === '404 Diagnostic Test') {
+      document.title = 'AREON | 404 Telemetry Signal Lost';
+    } else if (activeTab === 'AI & SHAP Analytics') {
+      document.title = `AREON | AI Diagnostics • ${activeEngineId}`;
+    } else if (activeTab === 'Mission Replay') {
+      document.title = `AREON | Mission Replay • ${activeEngineId}`;
+    } else if (activeTab === '3D Hologram Twin') {
+      document.title = `AREON | 3D Hologram CAD Twin • ${activeEngineId}`;
+    } else {
+      const isAlert = telemetry?.anomaly === 1;
+      document.title = `AREON | ${activeEngineId} - ${isAlert ? 'ALERT' : 'Nominal'}`;
+    }
+  }, [activeTab, activeEngineId, telemetry?.anomaly, engines.length]);
 
   // AREON AI Advisor (Groq LLM)
   const [aiInsight, setAiInsight] = useState<AiInsight | null>(null);
@@ -247,8 +332,10 @@ export const App: React.FC = () => {
       }
       fetchEngines();
       fetchAiInsight(engineId);
-    } catch (e) {
+      addToast('info', `Active Engine: ${engineId}`, 'Real-time telemetry and AI pipeline synchronized');
+    } catch (e: any) {
       console.error('Failed to select engine:', e);
+      addToast('error', 'Engine Selection Failed', e.message || 'Could not switch active powerplant');
     }
   };
 
@@ -256,8 +343,10 @@ export const App: React.FC = () => {
     try {
       await api.addEngine(engineId, modelName);
       await fetchEngines();
-    } catch (e) {
+      addToast('success', `Engine ${engineId} Connected`, 'Successfully registered to GCS telemetry fleet');
+    } catch (e: any) {
       console.error('Failed to add engine:', e);
+      addToast('error', `Failed to Add ${engineId}`, e.message || 'Engine already registered or server error');
       throw e;
     }
   };
@@ -269,8 +358,10 @@ export const App: React.FC = () => {
         setActiveEngineId(res.active_engine);
       }
       await fetchEngines();
-    } catch (e) {
+      addToast('info', `Engine ${engineId} Disconnected`, 'De-registered from active monitoring');
+    } catch (e: any) {
       console.error('Failed to remove engine:', e);
+      addToast('error', 'Disconnect Failed', e.message || 'Unable to remove engine');
     }
   };
 
@@ -280,8 +371,10 @@ export const App: React.FC = () => {
       await api.startSimulation();
       const s = await api.getStatus();
       setStatus(s);
-    } catch (e) {
+      addToast('success', 'Telemetry Simulation Started', 'Streaming 1Hz ODE Kalman data over WebSocket');
+    } catch (e: any) {
       console.error(e);
+      addToast('error', 'Simulation Start Failed', e.message || 'Backend service unreachable');
     }
   };
 
@@ -290,8 +383,10 @@ export const App: React.FC = () => {
       await api.stopSimulation();
       const s = await api.getStatus();
       setStatus(s);
-    } catch (e) {
+      addToast('info', 'Simulation Halted', 'Telemetry stream temporarily paused');
+    } catch (e: any) {
       console.error(e);
+      addToast('error', 'Simulation Stop Failed', e.message);
     }
   };
 
@@ -303,8 +398,14 @@ export const App: React.FC = () => {
       // Allow 1 second for simulation loop to capture fault reading and re-query Groq LLM
       setTimeout(() => fetchAiInsight(target), 1200);
       fetchEngines();
-    } catch (e) {
+      if (fault === 'none') {
+        addToast('success', 'Nominal State Restored', `Engine ${target} returned to healthy baseline`);
+      } else {
+        addToast('warning', `Fault Injected: ${fault.replace(/_/g, ' ').toUpperCase()}`, `Simulation running on unit ${target}`);
+      }
+    } catch (e: any) {
       console.error(e);
+      addToast('error', 'Fault Injection Failed', e.message);
     }
   };
 
@@ -314,8 +415,10 @@ export const App: React.FC = () => {
       setAlerts((prev) =>
         prev.map((a) => (a.id === id ? { ...a, acknowledged: true } : a))
       );
-    } catch (e) {
+      addToast('success', 'Alert Acknowledged', `Alert record #${id} marked as resolved`);
+    } catch (e: any) {
       console.error(e);
+      addToast('error', 'Acknowledgement Failed', e.message);
     }
   };
 
@@ -362,13 +465,16 @@ export const App: React.FC = () => {
         currentFault={currentFault}
         onSelectFault={handleSelectFault}
         faultTypes={faultTypes}
+        isLightTheme={isLightTheme}
+        onToggleTheme={() => setIsLightTheme(prev => !prev)}
+        onOpenSearch={() => setIsCommandPaletteOpen(true)}
       />
 
       {/* ── 1. NAV HEADER ──────────────────────────────────────────────────────── */}
-      <header className="relative z-20 flex flex-wrap items-center justify-between px-4 py-2.5 h-auto sm:h-14 shrink-0 gap-3 border-b border-cyan-500/20 bg-[#070B14]/95 backdrop-blur-md">
+      <header className="relative z-20 flex flex-wrap items-center justify-between px-3 sm:px-4 py-2.5 h-auto sm:h-14 shrink-0 gap-2 sm:gap-3 border-b border-cyan-500/20 bg-[#070B14]/95 backdrop-blur-md">
         
         {/* Left: Side Menu Toggle + Logo + Active Engine Switcher */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 sm:gap-3">
           
           {/* Side Menu Hamburger Toggle */}
           <button
@@ -384,7 +490,7 @@ export const App: React.FC = () => {
           </button>
 
           {/* Logo */}
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2">
             <div className="relative w-8 h-8 flex items-center justify-center rounded-lg border border-cyan-400/40 bg-slate-900/80 shadow-[0_0_12px_rgba(0,240,255,0.25)] overflow-hidden">
               <img src="/logo.png" alt="AREON" className="w-7 h-7 object-contain rounded-md" />
             </div>
@@ -414,7 +520,7 @@ export const App: React.FC = () => {
         </div>
 
         {/* Nav Tabs */}
-        <nav className="flex items-center gap-1 p-1 rounded-full bg-slate-900/90 border border-cyan-500/20 overflow-x-auto">
+        <nav className="flex items-center gap-1 p-1 rounded-full bg-slate-900/90 border border-cyan-500/20 overflow-x-auto max-w-full">
           {(['Command Overview', '3D Hologram Twin', 'AI & SHAP Analytics', 'Mission Replay', 'Fleet Manager'] as NavTab[]).map((tab) => (
             <button
               key={tab}
@@ -422,7 +528,7 @@ export const App: React.FC = () => {
                 setActiveTab(tab);
                 setIsReplayMode(tab === 'Mission Replay');
               }}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
                 activeTab === tab
                   ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-[0_0_10px_rgba(0,240,255,0.25)] font-bold'
                   : 'text-slate-400 hover:text-slate-200'
@@ -440,19 +546,43 @@ export const App: React.FC = () => {
         </nav>
 
         {/* Right Controls */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-2.5">
           
+          {/* Site Search Button (Ctrl+K) */}
+          <button
+            onClick={() => setIsCommandPaletteOpen(true)}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 text-xs font-mono transition shadow-sm cursor-pointer"
+            title="Search telemetry, engines & views (Ctrl+K)"
+          >
+            <Search className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[11px] hidden xl:inline">Search</span>
+            <span className="text-[9px] text-slate-500 border border-slate-800 rounded px-1 hidden md:inline">Ctrl+K</span>
+          </button>
+
+          {/* Theme Toggle Button (Dark vs Daylight Field Operations) */}
+          <button
+            onClick={() => {
+              const next = !isLightTheme;
+              setIsLightTheme(next);
+              addToast('info', next ? 'Daylight Operations Mode' : 'Tactical Dark HUD Active', 'Display contrast adjusted');
+            }}
+            className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-slate-300 hover:text-cyan-300 transition cursor-pointer"
+            title={isLightTheme ? "Switch to Tactical Dark HUD" : "Switch to Daylight Field Operations Mode"}
+          >
+            {isLightTheme ? <Moon className="w-4 h-4 text-cyan-300" /> : <Sun className="w-4 h-4 text-amber-400" />}
+          </button>
+
           {/* Live Link Badge */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-900 border border-slate-800 text-xs">
             {isConnected ? (
               <>
                 <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-                <span className="text-emerald-400 font-mono font-semibold text-[11px]">LIVE LINK</span>
+                <span className="text-emerald-400 font-mono font-semibold text-[11px] hidden sm:inline">LIVE LINK</span>
               </>
             ) : (
               <>
                 <WifiOff className="w-3.5 h-3.5 text-red-400" />
-                <span className="text-red-400 font-mono font-semibold text-[11px]">DISCONNECTED</span>
+                <span className="text-red-400 font-mono font-semibold text-[11px] hidden sm:inline">DISCONNECTED</span>
               </>
             )}
           </div>
@@ -508,6 +638,11 @@ export const App: React.FC = () => {
             onRemoveEngine={handleRemoveEngine}
             onInjectFault={handleSelectFault}
             faultTypes={faultTypes}
+          />
+        ) : activeTab === '404 Diagnostic Test' ? (
+          <NotFoundPage
+            onReturnHome={() => setActiveTab('Command Overview')}
+            attemptedRoute="SORTIE_SIM_404"
           />
         ) : (
           <>
@@ -981,6 +1116,40 @@ export const App: React.FC = () => {
       <footer className="border-t border-cyan-500/10 bg-[#070B14] py-3 px-4 text-center text-[10px] font-mono text-slate-500">
         AREON • SMART INDIA HACKATHON • MALE UAV TURBOCHARGED PISTON ENGINE AI DIGITAL TWIN
       </footer>
+
+      {/* ── Scroll Progress Bar (Top of Window) ── */}
+      <div id="scroll-progress" style={{ width: `${scrollPercent}%` }} />
+
+      {/* ── Floating Back to Top Button ── */}
+      <BackToTop />
+
+      {/* ── Cookie & Telemetry Consent Banner ── */}
+      <CookieBanner />
+
+      {/* ── Global Toast Notifications ── */}
+      <ToastContainer toasts={toasts} onDismiss={removeToast} />
+
+      {/* ── Command Palette & Site Search (Ctrl+K) ── */}
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        onClose={() => setIsCommandPaletteOpen(false)}
+        onNavigateTab={(tab) => {
+          setActiveTab(tab);
+          setIsReplayMode(tab === 'Mission Replay');
+        }}
+        engines={engines}
+        onSelectEngine={handleSelectEngine}
+        onToggleTheme={() => {
+          const next = !isLightTheme;
+          setIsLightTheme(next);
+          addToast('info', next ? 'Daylight Operations Mode' : 'Tactical Dark HUD Active', 'Display contrast adjusted');
+        }}
+        isLightTheme={isLightTheme}
+        onStartSim={handleStartSim}
+        onStopSim={handleStopSim}
+        isSimRunning={status?.is_running ?? false}
+        onSelectFault={handleSelectFault}
+      />
 
     </div>
   );

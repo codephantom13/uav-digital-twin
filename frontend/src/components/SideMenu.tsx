@@ -11,7 +11,11 @@ import {
   Square, 
   Wifi, 
   WifiOff,
-  Plane
+  Plane,
+  Search,
+  Sun,
+  Moon,
+  AlertTriangle
 } from 'lucide-react';
 
 interface SideMenuProps {
@@ -30,6 +34,9 @@ interface SideMenuProps {
   currentFault: string;
   onSelectFault: (fault: string) => void;
   faultTypes: string[];
+  isLightTheme?: boolean;
+  onToggleTheme?: () => void;
+  onOpenSearch?: () => void;
 }
 
 export const SideMenu: React.FC<SideMenuProps> = ({
@@ -48,19 +55,27 @@ export const SideMenu: React.FC<SideMenuProps> = ({
   currentFault,
   onSelectFault,
   faultTypes,
+  isLightTheme = false,
+  onToggleTheme,
+  onOpenSearch
 }) => {
   const [quickId, setQuickId] = useState('');
   const [adding, setAdding] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleQuickAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!quickId.trim()) return;
+    if (!quickId.trim()) {
+      setFormError('Please enter an Engine ID (e.g. ENGINE_002)');
+      return;
+    }
+    setFormError(null);
     setAdding(true);
     try {
       await onAddEngine(quickId.trim().toUpperCase());
       setQuickId('');
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to connect engine');
     } finally {
       setAdding(false);
     }
@@ -72,6 +87,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
     { id: 'AI & SHAP Analytics', label: 'AI & SHAP Analytics', icon: ShieldAlert },
     { id: 'Mission Replay', label: 'Mission Replay', icon: RotateCcw },
     { id: 'Fleet Manager', label: 'Fleet & Engines (Multi-UAV)', icon: Server, badge: `${engines.length}` },
+    { id: '404 Diagnostic Test', label: '404 Diagnostics Demo', icon: AlertTriangle }
   ];
 
   return (
@@ -110,6 +126,35 @@ export const SideMenu: React.FC<SideMenuProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Quick Search & Theme Actions Bar */}
+        <div className="p-3 border-b border-slate-800/80 flex items-center gap-2 bg-slate-950/40">
+          {onOpenSearch && (
+            <button
+              onClick={() => {
+                onClose();
+                onOpenSearch();
+              }}
+              className="flex-1 flex items-center justify-between px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400/50 text-slate-300 text-xs font-mono transition"
+            >
+              <div className="flex items-center gap-2">
+                <Search className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="text-[11px]">Site Search...</span>
+              </div>
+              <span className="text-[9px] text-slate-500 border border-slate-800 rounded px-1">Ctrl+K</span>
+            </button>
+          )}
+
+          {onToggleTheme && (
+            <button
+              onClick={onToggleTheme}
+              title={isLightTheme ? 'Switch to Dark Mode' : 'Switch to Daylight Mode'}
+              className="p-1.5 rounded-lg bg-slate-900 border border-slate-700 hover:border-cyan-400 text-cyan-300 transition"
+            >
+              {isLightTheme ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
+            </button>
+          )}
         </div>
 
         {/* Scrollable Content */}
@@ -152,7 +197,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
             </div>
           </div>
 
-          {/* ── SECTION 2: MULTI-ENGINE FLEET SECTION (REQUESTED FEATURE) ─── */}
+          {/* ── SECTION 2: MULTI-ENGINE FLEET SECTION ─────────────────────── */}
           <div className="bg-slate-950/90 border border-cyan-500/25 rounded-xl p-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-[10px] font-mono font-bold uppercase text-cyan-400 tracking-wider flex items-center gap-1.5">
@@ -220,7 +265,10 @@ export const SideMenu: React.FC<SideMenuProps> = ({
                   type="text"
                   placeholder="e.g. ENGINE_003"
                   value={quickId}
-                  onChange={(e) => setQuickId(e.target.value.toUpperCase())}
+                  onChange={(e) => {
+                    setQuickId(e.target.value.toUpperCase());
+                    if (formError) setFormError(null);
+                  }}
                   className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono text-cyan-200 placeholder-slate-600 focus:outline-none focus:border-cyan-400"
                 />
                 <button
@@ -231,6 +279,9 @@ export const SideMenu: React.FC<SideMenuProps> = ({
                   {adding ? '...' : 'Add'}
                 </button>
               </div>
+              {formError && (
+                <p className="text-[10px] text-red-400 font-mono mt-1">{formError}</p>
+              )}
             </form>
           </div>
 
@@ -246,7 +297,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               {isRunning ? (
                 <button
                   onClick={onStopSim}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-mono font-bold"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-mono font-bold hover:bg-red-500/30 transition"
                 >
                   <Square className="w-3 h-3 fill-current" />
                   HALT SIM
@@ -254,7 +305,7 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               ) : (
                 <button
                   onClick={onStartSim}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold"
+                  className="flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono font-bold hover:bg-emerald-500/30 transition"
                 >
                   <Play className="w-3 h-3 fill-current" />
                   START SIM

@@ -277,9 +277,13 @@ export const FleetManager: React.FC<FleetManagerProps> = ({
                   {/* Remove Button (if >1 engine) */}
                   {engines.length > 1 && (
                     <button
-                      onClick={() => onRemoveEngine(eng.engine_id)}
+                      onClick={() => {
+                        if (window.confirm(`Confirm disconnect: Remove engine ${eng.engine_id} from active GCS telemetry fleet?`)) {
+                          onRemoveEngine(eng.engine_id);
+                        }
+                      }}
                       title={`Disconnect ${eng.engine_id}`}
-                      className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition"
+                      className="text-slate-500 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
